@@ -26,13 +26,17 @@ func (g *Game) generate_level() {
 }
 
 func (g *Game) update() {
+	fmt.Println("updating")
 	g.level.render()
 }
 
 func (g *Game) handle_user_input(c string) {
 	switch c {
 	case "j":
+		fmt.Println(g.pc.y)
 		g.pc.y += 1
+		fmt.Println(g.pc.y)
+		fmt.Println("-")
 	case "h":
 		g.pc.x -= 1
 	case "l":
@@ -58,16 +62,11 @@ type Level struct {
 	pc            *PlayerCharacter
 }
 
-func (l *Level) get_rand(i int) int {
-	s1 := rand.NewSource(time.Now().UnixNano())
-	r1 := rand.New(s1)
-	return r1.Intn(i)
-}
 func (l *Level) new_room() Room {
-	w := l.get_rand(10) + 2
-	h := l.get_rand(8) + 2
-	x := l.get_rand(l.width - w)
-	y := l.get_rand(l.height - h)
+	w := get_rand(10) + 2
+	h := get_rand(8) + 2
+	x := get_rand(l.width - w)
+	y := get_rand(l.height - h)
 	return Room{x, y, w, h}
 }
 func (l *Level) generate_rooms(n int) {
@@ -97,11 +96,16 @@ func (l *Level) render() {
 		fmt.Println()
 	}
 }
-func (l *Level) put_player(p *PlayerCharacter) {
-	x := l.rooms[0].x + 1
-	y := l.rooms[0].y + 1
-	p.x, p.y = x, y
-	l.pc = p
+func (l *Level) get_random_room() Room {
+	i := get_rand(len(l.rooms))
+	return l.rooms[i]
+}
+func (l *Level) put_player(pc *PlayerCharacter) {
+	r := l.get_random_room()
+	p := r.get_random_inner_point()
+	pc.x = p.x
+	pc.y = p.y
+	l.pc = pc
 }
 
 /**
@@ -113,6 +117,16 @@ type Room struct {
 	w, h int
 }
 
+func (r *Room) get_random_inner_point() Point {
+	pts := r.get_inner_points()
+	i := get_rand(len(pts))
+	return pts[i]
+}
+func (r *Room) get_inner_points() []Point {
+	a := Point{r.x + 1, r.y + 1}
+	b := Point{r.x + r.w - 1, r.y + r.h - 1}
+	return get_rect_points(a, b)
+}
 func (r *Room) exists_at(x int, y int) bool {
 	xw := r.x + r.w
 	yh := r.y + r.h
@@ -131,6 +145,13 @@ func (r *Room) get_dot(x int, y int) string {
 }
 
 /**
+ *
+ */
+type Point struct {
+	x, y int
+}
+
+/**
  * Player Character
  */
 
@@ -141,6 +162,23 @@ type PlayerCharacter struct {
 /**
  * main
  */
+func get_rect_points(a Point, b Point) []Point {
+	p := []Point{}
+	for i := a.x; i <= b.x; i++ {
+		for j := a.y; j <= b.y; j++ {
+			p = append(p, Point{i, j})
+		}
+	}
+	return p
+}
+
+func get_rand(i int) int {
+	s1 := rand.NewSource(time.Now().UnixNano())
+	r1 := rand.New(s1)
+	return r1.Intn(i)
+}
+
+// since installing Goncurses on mac os x is a drag ...
 func getch() []byte {
 	t, _ := term.Open("/dev/tty")
 	term.RawMode(t)
@@ -154,8 +192,8 @@ func getch() []byte {
 	return bytes[0:numRead]
 }
 
-func handle_io(g Game, b string) bool {
-	// since installing Goncurses on mac os x is a drag ...
+func handle_io(g Game) bool {
+	b := string(getch())
 	if b == "c" {
 		return true
 	} else {
@@ -169,8 +207,7 @@ func main() {
 	for {
 		exec.Command("Clear").Run()
 		game.update()
-		b := getch()
-		if handle_io(game, string(b)) {
+		if handle_io(game) {
 			break
 		}
 	}
