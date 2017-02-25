@@ -5,9 +5,52 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"strings"
 	"time"
 )
+
+/**
+ * Game
+ */
+
+type Game struct {
+	level *Level
+	pc    *PlayerCharacter
+}
+
+func (g *Game) generate_level() {
+	g.level = &Level{60, 40, nil, nil}
+	g.level.generate_rooms(3)
+	g.pc = &PlayerCharacter{0, 0}
+	g.level.put_player(g.pc)
+}
+
+func (g *Game) update() {
+	g.level.render()
+}
+
+func (g *Game) over() bool {
+	scan := bufio.NewScanner(os.Stdin)
+	scan.Scan()
+	switch scan.Text() {
+	case "c":
+		return true
+	case "j":
+		g.pc.y += 1
+	case "h":
+		g.pc.x -= 1
+	case "l":
+		g.pc.x += 1
+	case "k":
+		g.pc.y -= 1
+	}
+	return false
+}
+
+func new_game() Game {
+	g := Game{nil, nil}
+	g.generate_level()
+	return g
+}
 
 /**
  * Level
@@ -16,6 +59,7 @@ import (
 type Level struct {
 	width, height int
 	rooms         []Room
+	pc            *PlayerCharacter
 }
 
 func (l *Level) get_rand(i int) int {
@@ -31,6 +75,7 @@ func (l *Level) new_room() Room {
 	return Room{x, y, w, h}
 }
 func (l *Level) generate_rooms(n int) {
+	l.rooms = []Room{}
 	for i := 0; i < n; i++ {
 		l.rooms = append(l.rooms, l.new_room())
 	}
@@ -39,7 +84,11 @@ func (l *Level) print_char(x int, y int) {
 	dot := " "
 	for _, r := range l.rooms {
 		if r.exists_at(x, y) {
-			dot = r.get_dot(x, y)
+			if l.pc.x == x && l.pc.y == y {
+				dot = "@"
+			} else {
+				dot = r.get_dot(x, y)
+			}
 		}
 	}
 	fmt.Print(dot)
@@ -52,8 +101,11 @@ func (l *Level) render() {
 		fmt.Println()
 	}
 }
-
-func NewLevel() {
+func (l *Level) put_player(p *PlayerCharacter) {
+	x := l.rooms[0].x + 1
+	y := l.rooms[0].y + 1
+	p.x, p.y = x, y
+	l.pc = p
 }
 
 /**
@@ -82,27 +134,23 @@ func (r *Room) get_dot(x int, y int) string {
 	return "."
 }
 
-func generate_level() Level {
-	l := Level{60, 40, []Room{}}
-	l.generate_rooms(3)
-	return l
+/**
+ * Player Character
+ */
+
+type PlayerCharacter struct {
+	x, y int
 }
 
-func draw() {
-	l := generate_level()
-	l.render()
-}
-
-func scan() bool {
-	scan := bufio.NewScanner(os.Stdin)
-	scan.Scan()
-	return strings.Contains(scan.Text(), "c")
-}
+/**
+ * main
+ */
 
 func main() {
+	game := new_game()
 	for {
-		draw()
-		if scan() {
+		game.update()
+		if game.over() {
 			break
 		}
 	}
