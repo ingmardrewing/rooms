@@ -26,23 +26,28 @@ func (g *Game) generate_level() {
 }
 
 func (g *Game) update() {
-	fmt.Println("updating")
 	g.level.render()
 }
 
 func (g *Game) handle_user_input(c string) {
+	x := g.pc.x
+	y := g.pc.y
 	switch c {
 	case "j":
-		fmt.Println(g.pc.y)
-		g.pc.y += 1
-		fmt.Println(g.pc.y)
-		fmt.Println("-")
+		y += 1
 	case "h":
-		g.pc.x -= 1
+		x -= 1
 	case "l":
-		g.pc.x += 1
+		x += 1
 	case "k":
-		g.pc.y -= 1
+		y -= 1
+	}
+
+	new_pc_pos := Point{x, y}
+	wkbl := g.level.get_walkable_points()
+	if new_pc_pos.is_in_slice(wkbl) {
+		g.pc.x = new_pc_pos.x
+		g.pc.y = new_pc_pos.y
 	}
 }
 
@@ -62,6 +67,13 @@ type Level struct {
 	pc            *PlayerCharacter
 }
 
+func (l *Level) get_walkable_points() []Point {
+	pts := []Point{}
+	for _, r := range l.rooms {
+		pts = append(pts, r.get_inner_points()...)
+	}
+	return pts
+}
 func (l *Level) new_room() Room {
 	w := get_rand(10) + 2
 	h := get_rand(8) + 2
@@ -132,21 +144,14 @@ func (r *Room) get_points() []Point {
 	b := Point{r.x + r.w, r.y + r.h}
 	return get_rect_points(a, b)
 }
-func (r *Room) splice_of_points_contains_point(s []Point, p Point) bool {
-	for _, sp := range s {
-		if sp.x == p.x && sp.y == p.y {
-			return true
-		}
-	}
-	return false
-}
+
 func (r *Room) is_my_point(p Point) bool {
 	pts := r.get_points()
-	return r.splice_of_points_contains_point(pts, p)
+	return p.is_in_slice(pts)
 }
 func (r *Room) is_my_inner_point(p Point) bool {
 	pts := r.get_inner_points()
-	return r.splice_of_points_contains_point(pts, p)
+	return p.is_in_slice(pts)
 }
 func (r *Room) exists_at(p Point) bool {
 	return r.is_my_point(p)
@@ -166,6 +171,15 @@ func (r *Room) get_dot(p Point) string {
  */
 type Point struct {
 	x, y int
+}
+
+func (p *Point) is_in_slice(s []Point) bool {
+	for _, sp := range s {
+		if sp.x == p.x && sp.y == p.y {
+			return true
+		}
+	}
+	return false
 }
 
 /**
