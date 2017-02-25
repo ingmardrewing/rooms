@@ -75,14 +75,14 @@ func (l *Level) generate_rooms(n int) {
 		l.rooms = append(l.rooms, l.new_room())
 	}
 }
-func (l *Level) print_char(x int, y int) {
+func (l *Level) print_char(p Point) {
 	dot := " "
 	for _, r := range l.rooms {
-		if r.exists_at(x, y) {
-			if l.pc.x == x && l.pc.y == y {
+		if r.exists_at(p) {
+			if l.pc.x == p.x && l.pc.y == p.y {
 				dot = "@"
 			} else {
-				dot = r.get_dot(x, y)
+				dot = r.get_dot(p)
 			}
 		}
 	}
@@ -91,7 +91,7 @@ func (l *Level) print_char(x int, y int) {
 func (l *Level) render() {
 	for y := 0; y < l.height; y++ {
 		for x := 0; x < l.width; x++ {
-			l.print_char(x, y)
+			l.print_char(Point{x, y})
 		}
 		fmt.Println()
 	}
@@ -127,18 +127,35 @@ func (r *Room) get_inner_points() []Point {
 	b := Point{r.x + r.w - 1, r.y + r.h - 1}
 	return get_rect_points(a, b)
 }
-func (r *Room) exists_at(x int, y int) bool {
-	xw := r.x + r.w
-	yh := r.y + r.h
-	return x >= r.x && x <= xw && y >= r.y && y <= yh
+func (r *Room) get_points() []Point {
+	a := Point{r.x, r.y}
+	b := Point{r.x + r.w, r.y + r.h}
+	return get_rect_points(a, b)
 }
-func (r *Room) is_border(x int, y int) bool {
-	xw := r.x + r.w
-	yh := r.y + r.h
-	return x == r.x || x == xw || y == r.y || y == yh
+func (r *Room) splice_of_points_contains_point(s []Point, p Point) bool {
+	for _, sp := range s {
+		if sp.x == p.x && sp.y == p.y {
+			return true
+		}
+	}
+	return false
 }
-func (r *Room) get_dot(x int, y int) string {
-	if r.is_border(x, y) {
+func (r *Room) is_my_point(p Point) bool {
+	pts := r.get_points()
+	return r.splice_of_points_contains_point(pts, p)
+}
+func (r *Room) is_my_inner_point(p Point) bool {
+	pts := r.get_inner_points()
+	return r.splice_of_points_contains_point(pts, p)
+}
+func (r *Room) exists_at(p Point) bool {
+	return r.is_my_point(p)
+}
+func (r *Room) is_border(p Point) bool {
+	return r.is_my_point(p) && !r.is_my_inner_point(p)
+}
+func (r *Room) get_dot(p Point) string {
+	if r.is_border(p) {
 		return "#"
 	}
 	return "."
