@@ -18,20 +18,28 @@ type Game struct {
 	pc    *PlayerCharacter
 }
 
+func (g *Game) handle_io() bool {
+	b := string(getch())
+	if b == "c" {
+		return true
+	} else {
+		g.handle_user_input(b)
+	}
+	return false
+}
 func (g *Game) generate_level() {
 	g.level = &Level{60, 40, nil, nil}
 	g.level.generate_rooms(3)
-	g.pc = &PlayerCharacter{0, 0}
+	g.pc = &PlayerCharacter{Point{0, 0}}
 	g.level.put_player(g.pc)
 }
-
 func (g *Game) update() {
+	exec.Command("Clear").Run()
 	g.level.render()
 }
-
 func (g *Game) handle_user_input(c string) {
-	x := g.pc.x
-	y := g.pc.y
+	x := g.pc.pos.x
+	y := g.pc.pos.y
 	switch c {
 	case "j":
 		y += 1
@@ -46,8 +54,7 @@ func (g *Game) handle_user_input(c string) {
 	new_pc_pos := Point{x, y}
 	wkbl := g.level.get_walkable_points()
 	if new_pc_pos.is_in_slice(wkbl) {
-		g.pc.x = new_pc_pos.x
-		g.pc.y = new_pc_pos.y
+		g.pc.pos = new_pc_pos
 	}
 }
 
@@ -91,7 +98,7 @@ func (l *Level) print_char(p Point) {
 	dot := " "
 	for _, r := range l.rooms {
 		if r.exists_at(p) {
-			if l.pc.x == p.x && l.pc.y == p.y {
+			if l.pc.pos.x == p.x && l.pc.pos.y == p.y {
 				dot = "@"
 			} else {
 				dot = r.get_dot(p)
@@ -115,8 +122,7 @@ func (l *Level) get_random_room() Room {
 func (l *Level) put_player(pc *PlayerCharacter) {
 	r := l.get_random_room()
 	p := r.get_random_inner_point()
-	pc.x = p.x
-	pc.y = p.y
+	pc.pos = p
 	l.pc = pc
 }
 
@@ -144,7 +150,6 @@ func (r *Room) get_points() []Point {
 	b := Point{r.x + r.w, r.y + r.h}
 	return get_rect_points(a, b)
 }
-
 func (r *Room) is_my_point(p Point) bool {
 	pts := r.get_points()
 	return p.is_in_slice(pts)
@@ -187,7 +192,7 @@ func (p *Point) is_in_slice(s []Point) bool {
  */
 
 type PlayerCharacter struct {
-	x, y int
+	pos Point
 }
 
 /**
@@ -223,22 +228,11 @@ func getch() []byte {
 	return bytes[0:numRead]
 }
 
-func handle_io(g Game) bool {
-	b := string(getch())
-	if b == "c" {
-		return true
-	} else {
-		g.handle_user_input(b)
-	}
-	return false
-}
-
 func main() {
 	game := new_game()
 	for {
-		exec.Command("Clear").Run()
 		game.update()
-		if handle_io(game) {
+		if game.handle_io() {
 			break
 		}
 	}
