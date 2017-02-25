@@ -97,10 +97,7 @@ func scan() bool {
 	scan := bufio.NewScanner(os.Stdin)
 	scan.Scan()
 	s := scan.Text()
-	if strings.Contains(s, "c") {
-		return true
-	}
-	return false
+	return strings.Contains(s, "c")
 }
 
 func main() {
