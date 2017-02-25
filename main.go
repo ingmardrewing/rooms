@@ -96,8 +96,7 @@ func draw() {
 func scan() bool {
 	scan := bufio.NewScanner(os.Stdin)
 	scan.Scan()
-	s := scan.Text()
-	return strings.Contains(s, "c")
+	return strings.Contains(scan.Text(), "c")
 }
 
 func main() {
