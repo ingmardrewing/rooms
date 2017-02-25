@@ -1,11 +1,12 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"math/rand"
-	"os"
+	"os/exec"
 	"time"
+
+	"github.com/pkg/term"
 )
 
 /**
@@ -28,12 +29,8 @@ func (g *Game) update() {
 	g.level.render()
 }
 
-func (g *Game) over() bool {
-	scan := bufio.NewScanner(os.Stdin)
-	scan.Scan()
-	switch scan.Text() {
-	case "c":
-		return true
+func (g *Game) handle_user_input(c string) {
+	switch c {
 	case "j":
 		g.pc.y += 1
 	case "h":
@@ -43,7 +40,6 @@ func (g *Game) over() bool {
 	case "k":
 		g.pc.y -= 1
 	}
-	return false
 }
 
 func new_game() Game {
@@ -145,12 +141,36 @@ type PlayerCharacter struct {
 /**
  * main
  */
+func getch() []byte {
+	t, _ := term.Open("/dev/tty")
+	term.RawMode(t)
+	bytes := make([]byte, 3)
+	numRead, err := t.Read(bytes)
+	t.Restore()
+	t.Close()
+	if err != nil {
+		return nil
+	}
+	return bytes[0:numRead]
+}
+
+func handle_io(g Game, b string) bool {
+	// since installing Goncurses on mac os x is a drag ...
+	if b == "c" {
+		return true
+	} else {
+		g.handle_user_input(b)
+	}
+	return false
+}
 
 func main() {
 	game := new_game()
 	for {
+		exec.Command("Clear").Run()
 		game.update()
-		if game.over() {
+		b := getch()
+		if handle_io(game, string(b)) {
 			break
 		}
 	}
