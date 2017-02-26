@@ -9,6 +9,8 @@ import (
 	"github.com/pkg/term"
 )
 
+type tiletype int
+
 /**
  * Game
  */
@@ -32,10 +34,6 @@ func (g *Game) generate_level() {
 	g.level.init()
 	g.pc = &PlayerCharacter{Point{0, 0}}
 	g.level.put_player(g.pc)
-}
-func (g *Game) update() {
-	exec.Command("Clear").Run()
-	g.level.render()
 }
 func (g *Game) handle_user_input(c string) {
 	x := g.pc.pos.x
@@ -109,26 +107,26 @@ func (l *Level) generate_rooms() {
 func (l *Level) generate_corridors() {
 	// TODO implement ...
 }
-func (l *Level) print_char(p Point) {
-	tile := " "
+func (l *Level) get_tile(p Point) tiletype {
 	for _, r := range l.rooms {
 		if r.exists_at(p) {
 			if l.pc.pos.x == p.x && l.pc.pos.y == p.y {
-				tile = "@"
+				return 5
 			} else {
-				tile = r.get_dot(p)
+				return r.get_tile(p)
 			}
 		}
 	}
-	fmt.Print(tile)
+	return 0
 }
-func (l *Level) render() {
+func (l *Level) get_tiles() []tiletype {
+	tiles := []tiletype{}
 	for y := 0; y < l.height; y++ {
 		for x := 0; x < l.width; x++ {
-			l.print_char(Point{x, y})
+			tiles = append(tiles, l.get_tile(Point{x, y}))
 		}
-		fmt.Println()
 	}
+	return tiles
 }
 func (l *Level) get_random_room() Room {
 	i := get_rand(len(l.rooms))
@@ -179,11 +177,11 @@ func (r *Room) exists_at(p Point) bool {
 func (r *Room) is_border(p Point) bool {
 	return r.is_my_point(p) && !r.is_my_inner_point(p)
 }
-func (r *Room) get_dot(p Point) string {
+func (r *Room) get_tile(p Point) tiletype {
 	if r.is_border(p) {
-		return "#"
+		return 2
 	}
-	return "."
+	return 1
 }
 
 /**
@@ -208,6 +206,43 @@ func (p *Point) is_in_slice(s []Point) bool {
 
 type PlayerCharacter struct {
 	pos Point
+}
+
+/**
+ * renderer
+ */
+type Renderer struct{}
+
+func new_renderer() *Renderer {
+	return &Renderer{}
+}
+func (r *Renderer) clear() {
+	fmt.Println("clearing")
+	exec.Command("Clear").Run()
+}
+func (r *Renderer) get_texture(tt tiletype) string {
+	switch tt {
+	case 1:
+		return "."
+	case 2:
+		return "#"
+	case 5:
+		return "@"
+	}
+	return " "
+}
+func (r *Renderer) render(g *Game) {
+	w := g.level.width
+	h := g.level.height
+	t := g.level.get_tiles()
+	for i := 0; i < h; i++ {
+		for j := 0; j < w; j++ {
+			indx := i*w + j
+			texture := r.get_texture(t[indx])
+			fmt.Print(texture)
+		}
+		fmt.Println()
+	}
 }
 
 /**
@@ -249,9 +284,11 @@ func getch() []byte {
 }
 
 func main() {
+	renderer := new_renderer()
 	game := new_game()
 	for {
-		game.update()
+		renderer.clear()
+		renderer.render(&game)
 		if game.handle_io() {
 			break
 		}
