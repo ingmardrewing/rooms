@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"math/rand"
-	"os/exec"
 	"time"
 
 	"github.com/pkg/term"
@@ -217,8 +216,7 @@ func new_renderer() *Renderer {
 	return &Renderer{}
 }
 func (r *Renderer) clear() {
-	fmt.Println("clearing")
-	exec.Command("Clear").Run()
+	fmt.Println("\033[H\033[2J")
 }
 func (r *Renderer) get_texture(tt tiletype) string {
 	switch tt {
