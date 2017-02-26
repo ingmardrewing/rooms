@@ -28,8 +28,8 @@ func (g *Game) handle_io() bool {
 	return false
 }
 func (g *Game) generate_level() {
-	g.level = &Level{60, 40, nil, nil}
-	g.level.generate_rooms(3)
+	g.level = &Level{60, 32, nil, nil}
+	g.level.init()
 	g.pc = &PlayerCharacter{Point{0, 0}}
 	g.level.put_player(g.pc)
 }
@@ -74,6 +74,10 @@ type Level struct {
 	pc            *PlayerCharacter
 }
 
+func (l *Level) init() {
+	l.generate_rooms()
+	l.generate_corridors()
+}
 func (l *Level) get_walkable_points() []Point {
 	pts := []Point{}
 	for _, r := range l.rooms {
@@ -81,31 +85,42 @@ func (l *Level) get_walkable_points() []Point {
 	}
 	return pts
 }
-func (l *Level) new_room() Room {
-	w := get_rand(10) + 2
-	h := get_rand(8) + 2
-	x := get_rand(l.width - w)
-	y := get_rand(l.height - h)
+func (l *Level) new_room(a, b Point) Room {
+	dx := b.x - a.x
+	dy := b.y - a.y
+	w := get_rand_range(3, dx)
+	h := get_rand_range(3, dy)
+	x := a.x + get_rand(dx-w)
+	y := a.y + get_rand(dy-h)
 	return Room{x, y, w, h}
 }
-func (l *Level) generate_rooms(n int) {
+func (l *Level) generate_rooms() {
 	l.rooms = []Room{}
-	for i := 0; i < n; i++ {
-		l.rooms = append(l.rooms, l.new_room())
+	row_height := l.height / 2
+	col_width := l.width / 3
+	for i := 0; i < 2; i++ {
+		for j := 0; j < 3; j++ {
+			a := Point{j * col_width, i * row_height}
+			b := Point{(j + 1) * col_width, (i + 1) * row_height}
+			l.rooms = append(l.rooms, l.new_room(a, b))
+		}
 	}
 }
+func (l *Level) generate_corridors() {
+	// TODO implement ...
+}
 func (l *Level) print_char(p Point) {
-	dot := " "
+	tile := " "
 	for _, r := range l.rooms {
 		if r.exists_at(p) {
 			if l.pc.pos.x == p.x && l.pc.pos.y == p.y {
-				dot = "@"
+				tile = "@"
 			} else {
-				dot = r.get_dot(p)
+				tile = r.get_dot(p)
 			}
 		}
 	}
-	fmt.Print(dot)
+	fmt.Print(tile)
 }
 func (l *Level) render() {
 	for y := 0; y < l.height; y++ {
@@ -208,10 +223,15 @@ func get_rect_points(a Point, b Point) []Point {
 	return p
 }
 
+func get_rand_range(min int, max int) int {
+	s := rand.NewSource(time.Now().UnixNano())
+	r := rand.New(s)
+	return r.Intn(max-min) + min
+}
 func get_rand(i int) int {
-	s1 := rand.NewSource(time.Now().UnixNano())
-	r1 := rand.New(s1)
-	return r1.Intn(i)
+	s := rand.NewSource(time.Now().UnixNano())
+	r := rand.New(s)
+	return r.Intn(i)
 }
 
 // since installing Goncurses on mac os x is a drag ...
