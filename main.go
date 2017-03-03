@@ -31,8 +31,14 @@ type Game struct {
 	pc    *PlayerCharacter
 }
 
+func (g *Game) status() string {
+	return "h to go left, j to go down, k to go up, l to go right.\nq to quit"
+}
 func (g *Game) handle_io() bool {
 	b := string(getch())
+	if b == "q" {
+		return true
+	}
 	if b == "c" {
 		return true
 	} else {
@@ -80,7 +86,7 @@ func new_game() Game {
 type Level struct {
 	width, height int
 	rooms         []Room
-	corridors     []Point
+	corridors     []Corridor
 	pc            *PlayerCharacter
 }
 
@@ -93,7 +99,10 @@ func (l *Level) get_walkable_points() []Point {
 	for _, r := range l.rooms {
 		pts = append(pts, r.get_inner_points()...)
 	}
-	return append(pts, l.corridors...)
+	for _, c := range l.corridors {
+		pts = append(pts, c.get_points()...)
+	}
+	return pts
 }
 func (l *Level) new_room(a, b Point) Room {
 	dx := b.x - a.x
@@ -102,14 +111,16 @@ func (l *Level) new_room(a, b Point) Room {
 	h := get_rand_range(3, dy-1)
 	x := a.x + get_rand(dx-w)
 	y := a.y + get_rand(dy-h)
-	return Room{x, y, w, h}
+	r := Room{x, y, w, h, nil, nil}
+	r.init()
+	return r
 }
 func (l *Level) generate_rooms() {
 	l.rooms = []Room{}
 	row_height := l.height / 2
 	col_width := l.width / 3
-	for i := 0; i < 1; i++ {
-		for j := 0; j < 2; j++ {
+	for i := 0; i < 2; i++ {
+		for j := 0; j < 3; j++ {
 			a := Point{j * col_width, i * row_height}
 			b := Point{(j + 1) * col_width, (i + 1) * row_height}
 			l.rooms = append(l.rooms, l.new_room(a, b))
@@ -117,19 +128,21 @@ func (l *Level) generate_rooms() {
 	}
 }
 func (l *Level) generate_corridors() {
-	// TODO implement corridors
-	p1 := l.rooms[0].get_central_point()
-	p2 := l.rooms[1].get_central_point()
-	line := Line{p1, p2}
-	l.corridors = line.get_points()
+	from := []int{0, 1, 3, 4, 0, 1, 2}
+	to := []int{1, 2, 4, 5, 3, 4, 5}
+	crs := []Corridor{}
+	for i, _ := range from {
+		crs = append(crs, new_corridor(l, from[i], to[i]))
+	}
+	l.corridors = crs
 }
 func (l *Level) get_tile(p Point) tiletype {
 	if l.pc.pos.x == p.x && l.pc.pos.y == p.y {
 		return Player
 	}
 	for _, c := range l.corridors {
-		if p.x == c.x && p.y == c.y {
-			return Floor
+		if c.exists_at(p) {
+			return c.get_tile(p)
 		}
 	}
 	for _, r := range l.rooms {
@@ -164,10 +177,16 @@ func (l *Level) put_player(pc *PlayerCharacter) {
  */
 
 type Room struct {
-	x, y int
-	w, h int
+	x, y         int
+	w, h         int
+	points       []Point
+	inner_points []Point
 }
 
+func (r *Room) init() {
+	r.points = r.get_points()
+	r.inner_points = r.get_inner_points()
+}
 func (r *Room) get_random_inner_point() Point {
 	pts := r.get_inner_points()
 	i := get_rand(len(pts))
@@ -187,12 +206,10 @@ func (r *Room) get_points() []Point {
 	return get_rect_points(a, b)
 }
 func (r *Room) is_my_point(p Point) bool {
-	pts := r.get_points()
-	return p.is_in_slice(pts)
+	return p.is_in_slice(r.points)
 }
 func (r *Room) is_my_inner_point(p Point) bool {
-	pts := r.get_inner_points()
-	return p.is_in_slice(pts)
+	return p.is_in_slice(r.inner_points)
 }
 func (r *Room) exists_at(p Point) bool {
 	return r.is_my_point(p)
@@ -205,6 +222,46 @@ func (r *Room) get_tile(p Point) tiletype {
 		return Wall
 	}
 	return Floor
+}
+
+/**
+ * Corridor
+ */
+type Corridor struct {
+	room_a Room
+	room_b Room
+	points []Point
+}
+
+func new_corridor(l *Level, i int, j int) Corridor {
+	c := Corridor{l.rooms[i], l.rooms[j], nil}
+	c.init()
+	return c
+}
+func (c *Corridor) init() {
+	fmt.Println("init")
+	c.points = c.get_points()
+}
+func (c *Corridor) get_tile(p Point) tiletype {
+	return Floor
+}
+func (c *Corridor) exists_at(p Point) bool {
+	return p.is_in_slice(c.points)
+}
+func (c *Corridor) get_points() []Point {
+	a := c.room_a.get_central_point()
+	b := c.room_b.get_central_point()
+	m := a.get_point_between(b)
+	lines := []Line{
+		Line{a, Point{m.x, a.y}},
+		Line{Point{m.x, a.y}, m},
+		Line{m, Point{b.x, m.y}},
+		Line{Point{b.x, m.y}, b}}
+	pts := []Point{}
+	for _, l := range lines {
+		pts = append(pts, l.get_points()...)
+	}
+	return pts
 }
 
 /**
@@ -245,10 +302,15 @@ func (p *Point) get_surrounding_points() []Point {
 func (p *Point) equals(p1 Point) bool {
 	return p.x == p1.x && p.y == p1.y
 }
-func (p *Point) get_distance_to(b Point) float64 {
-	dx := float64(b.x - p.x)
-	dy := float64(b.y - p.y)
+func (p *Point) get_distance_to(p1 Point) float64 {
+	dx := float64(p1.x - p.x)
+	dy := float64(p1.y - p.y)
 	return math.Sqrt(dx*dx + dy*dy)
+}
+func (p *Point) get_point_between(p1 Point) Point {
+	x := int((p1.x - p.x) / 2)
+	y := int((p1.y - p.y) / 2)
+	return Point{p.x + x, p.y + y}
 }
 func (p *Point) is_in_slice(s []Point) bool {
 	for _, sp := range s {
@@ -302,6 +364,7 @@ func (r *Renderer) render(g *Game) {
 		}
 		fmt.Println()
 	}
+	fmt.Println(g.status())
 }
 
 /**
