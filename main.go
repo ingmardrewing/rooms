@@ -215,19 +215,17 @@ type Line struct {
 }
 
 func (l *Line) get_points() []Point {
-	return l.get_points_rec(l.a, l.b)
-}
-func (l *Line) get_points_rec(a Point, b Point) []Point {
-	adjacent := a.get_surrounding_points()
-	slice.Sort(adjacent[:], func(i, j int) bool {
-		return adjacent[i].get_distance_to(b) < adjacent[j].get_distance_to(b)
-	})
-
-	if adjacent[0].equals(b) {
-		return []Point{a, b}
+	cp := l.a
+	pts := []Point{l.a}
+	for !cp.equals(l.b) {
+		adjacent := cp.get_surrounding_points()
+		slice.Sort(adjacent[:], func(i, j int) bool {
+			return adjacent[i].get_distance_to(l.b) < adjacent[j].get_distance_to(l.b)
+		})
+		pts = append(pts, adjacent[0])
+		cp = adjacent[0]
 	}
-	fmt.Println(a)
-	return append(l.get_points_rec(adjacent[0], b), a)
+	return pts
 }
 
 /**
