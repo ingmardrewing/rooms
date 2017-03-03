@@ -2,13 +2,25 @@ package main
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"time"
 
+	"github.com/bradfitz/slice"
 	"github.com/pkg/term"
 )
 
+/**
+ * tiles
+ */
 type tiletype int
+
+const (
+	Void   = iota
+	Floor  = iota
+	Wall   = iota
+	Player = iota
+)
 
 /**
  * Game
@@ -29,7 +41,7 @@ func (g *Game) handle_io() bool {
 	return false
 }
 func (g *Game) generate_level() {
-	g.level = &Level{60, 32, nil, nil}
+	g.level = &Level{60, 32, nil, nil, nil}
 	g.level.init()
 	g.pc = &PlayerCharacter{Point{0, 0}}
 	g.level.put_player(g.pc)
@@ -68,6 +80,7 @@ func new_game() Game {
 type Level struct {
 	width, height int
 	rooms         []Room
+	corridors     []Point
 	pc            *PlayerCharacter
 }
 
@@ -80,13 +93,13 @@ func (l *Level) get_walkable_points() []Point {
 	for _, r := range l.rooms {
 		pts = append(pts, r.get_inner_points()...)
 	}
-	return pts
+	return append(pts, l.corridors...)
 }
 func (l *Level) new_room(a, b Point) Room {
 	dx := b.x - a.x
 	dy := b.y - a.y
-	w := get_rand_range(3, dx)
-	h := get_rand_range(3, dy)
+	w := get_rand_range(3, dx-1)
+	h := get_rand_range(3, dy-1)
 	x := a.x + get_rand(dx-w)
 	y := a.y + get_rand(dy-h)
 	return Room{x, y, w, h}
@@ -95,8 +108,8 @@ func (l *Level) generate_rooms() {
 	l.rooms = []Room{}
 	row_height := l.height / 2
 	col_width := l.width / 3
-	for i := 0; i < 2; i++ {
-		for j := 0; j < 3; j++ {
+	for i := 0; i < 1; i++ {
+		for j := 0; j < 2; j++ {
 			a := Point{j * col_width, i * row_height}
 			b := Point{(j + 1) * col_width, (i + 1) * row_height}
 			l.rooms = append(l.rooms, l.new_room(a, b))
@@ -104,19 +117,27 @@ func (l *Level) generate_rooms() {
 	}
 }
 func (l *Level) generate_corridors() {
-	// TODO implement ...
+	// TODO implement corridors
+	p1 := l.rooms[0].get_central_point()
+	p2 := l.rooms[1].get_central_point()
+	line := Line{p1, p2}
+	l.corridors = line.get_points()
 }
 func (l *Level) get_tile(p Point) tiletype {
-	for _, r := range l.rooms {
-		if r.exists_at(p) {
-			if l.pc.pos.x == p.x && l.pc.pos.y == p.y {
-				return 5
-			} else {
-				return r.get_tile(p)
-			}
+	if l.pc.pos.x == p.x && l.pc.pos.y == p.y {
+		return Player
+	}
+	for _, c := range l.corridors {
+		if p.x == c.x && p.y == c.y {
+			return Floor
 		}
 	}
-	return 0
+	for _, r := range l.rooms {
+		if r.exists_at(p) {
+			return r.get_tile(p)
+		}
+	}
+	return Void
 }
 func (l *Level) get_tiles() []tiletype {
 	tiles := []tiletype{}
@@ -152,6 +173,9 @@ func (r *Room) get_random_inner_point() Point {
 	i := get_rand(len(pts))
 	return pts[i]
 }
+func (r *Room) get_central_point() Point {
+	return Point{r.x + r.w/2, r.y + r.h/2}
+}
 func (r *Room) get_inner_points() []Point {
 	a := Point{r.x + 1, r.y + 1}
 	b := Point{r.x + r.w - 1, r.y + r.h - 1}
@@ -173,23 +197,61 @@ func (r *Room) is_my_inner_point(p Point) bool {
 func (r *Room) exists_at(p Point) bool {
 	return r.is_my_point(p)
 }
-func (r *Room) is_border(p Point) bool {
+func (r *Room) is_wall(p Point) bool {
 	return r.is_my_point(p) && !r.is_my_inner_point(p)
 }
 func (r *Room) get_tile(p Point) tiletype {
-	if r.is_border(p) {
-		return 2
+	if r.is_wall(p) {
+		return Wall
 	}
-	return 1
+	return Floor
 }
 
 /**
- *
+ * Line
+ */
+type Line struct {
+	a, b Point
+}
+
+func (l *Line) get_points() []Point {
+	return l.get_points_rec(l.a, l.b)
+}
+func (l *Line) get_points_rec(a Point, b Point) []Point {
+	adjacent := a.get_surrounding_points()
+	slice.Sort(adjacent[:], func(i, j int) bool {
+		return adjacent[i].get_distance_to(b) < adjacent[j].get_distance_to(b)
+	})
+
+	if adjacent[0].equals(b) {
+		return []Point{a, b}
+	}
+	fmt.Println(a)
+	return append(l.get_points_rec(adjacent[0], b), a)
+}
+
+/**
+ * point
  */
 type Point struct {
 	x, y int
 }
 
+func (p *Point) get_surrounding_points() []Point {
+	return []Point{
+		Point{p.x + 1, p.y},
+		Point{p.x, p.y + 1},
+		Point{p.x - 1, p.y},
+		Point{p.x, p.y - 1}}
+}
+func (p *Point) equals(p1 Point) bool {
+	return p.x == p1.x && p.y == p1.y
+}
+func (p *Point) get_distance_to(b Point) float64 {
+	dx := float64(b.x - p.x)
+	dy := float64(b.y - p.y)
+	return math.Sqrt(dx*dx + dy*dy)
+}
 func (p *Point) is_in_slice(s []Point) bool {
 	for _, sp := range s {
 		if sp.x == p.x && sp.y == p.y {
@@ -210,6 +272,7 @@ type PlayerCharacter struct {
 /**
  * renderer
  */
+
 type Renderer struct{}
 
 func new_renderer() *Renderer {
@@ -220,11 +283,11 @@ func (r *Renderer) clear() {
 }
 func (r *Renderer) get_texture(tt tiletype) string {
 	switch tt {
-	case 1:
+	case Floor:
 		return "."
-	case 2:
+	case Wall:
 		return "#"
-	case 5:
+	case Player:
 		return "@"
 	}
 	return " "
@@ -246,6 +309,7 @@ func (r *Renderer) render(g *Game) {
 /**
  * main
  */
+
 func get_rect_points(a Point, b Point) []Point {
 	p := []Point{}
 	for i := a.x; i <= b.x; i++ {
