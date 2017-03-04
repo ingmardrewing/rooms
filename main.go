@@ -184,6 +184,11 @@ func (l *Level) get_tile(p Point) tiletype {
 			return d.get_tile(p)
 		}
 	}
+	for _, s := range l.staircases {
+		if s.exists_at(p) {
+			return s.get_tile(p)
+		}
+	}
 	for _, c := range l.corridors {
 		if c.exists_at(p) {
 			return c.get_tile(p)
