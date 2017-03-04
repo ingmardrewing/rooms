@@ -4,4 +4,4 @@ I am just using this to learn go.
 
 ---
 
-Okay, it might end up becoming a game for [link](http://devabo.de)
+Okay, it might end up becoming a game for [DevAbo.de](http://devabo.de) (my webcomic).
