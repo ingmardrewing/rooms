@@ -6,8 +6,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/bradfitz/slice"
-	"github.com/pkg/term"
+	"github.com/bradfitz/slice" // for sorting
+	"github.com/pkg/term"       // for getting userinput without the user hitting enter
 )
 
 /**
@@ -16,10 +16,11 @@ import (
 type tiletype int
 
 const (
-	Void   = iota
-	Floor  = iota
-	Wall   = iota
-	Player = iota
+	VoidTile   = iota
+	FloorTile  = iota
+	WallTile   = iota
+	DoorTile   = iota
+	PlayerTile = iota
 )
 
 /**
@@ -47,7 +48,7 @@ func (g *Game) handle_io() bool {
 	return false
 }
 func (g *Game) generate_level() {
-	g.level = &Level{60, 32, nil, nil, nil}
+	g.level = &Level{60, 32, nil, nil, nil, nil}
 	g.level.init()
 	g.pc = &PlayerCharacter{Point{0, 0}}
 	g.level.put_player(g.pc)
@@ -87,12 +88,14 @@ type Level struct {
 	width, height int
 	rooms         []Room
 	corridors     []Corridor
+	doors         []Door
 	pc            *PlayerCharacter
 }
 
 func (l *Level) init() {
 	l.generate_rooms()
 	l.generate_corridors()
+	l.generate_doors()
 }
 func (l *Level) get_walkable_points() []Point {
 	pts := []Point{}
@@ -104,26 +107,15 @@ func (l *Level) get_walkable_points() []Point {
 	}
 	return pts
 }
-func (l *Level) new_room(a, b Point) Room {
-	dx := b.x - a.x
-	dy := b.y - a.y
-	w := get_rand_range(3, dx-1)
-	h := get_rand_range(3, dy-1)
-	x := a.x + get_rand(dx-w)
-	y := a.y + get_rand(dy-h)
-	r := Room{x, y, w, h, nil, nil}
-	r.init()
-	return r
-}
 func (l *Level) generate_rooms() {
 	l.rooms = []Room{}
 	row_height := l.height / 2
 	col_width := l.width / 3
 	for i := 0; i < 2; i++ {
 		for j := 0; j < 3; j++ {
-			a := Point{j * col_width, i * row_height}
+			a := Point{j*col_width + j, i*row_height + i}
 			b := Point{(j + 1) * col_width, (i + 1) * row_height}
-			l.rooms = append(l.rooms, l.new_room(a, b))
+			l.rooms = append(l.rooms, new_room(a, b))
 		}
 	}
 }
@@ -136,9 +128,51 @@ func (l *Level) generate_corridors() {
 	}
 	l.corridors = crs
 }
+func (l *Level) get_all_wall_points() []Point {
+	pts := []Point{}
+	for _, r := range l.rooms {
+		pts = append(pts, r.get_wall_points()...)
+	}
+	return pts
+}
+func (l *Level) get_all_corridor_points() []Point {
+	pts := []Point{}
+	for _, c := range l.corridors {
+		pts = append(pts, c.get_points()...)
+	}
+	return pts
+}
+func (l *Level) find_point_set_intersections(s1 []Point, s2 []Point) []Point {
+	pts := []Point{}
+	for _, p1 := range s1 {
+		if p1.is_in_slice(s2) {
+			pts = append(pts, p1)
+		}
+	}
+	return pts
+}
+func (l *Level) generate_doors_at(pts []Point) []Door {
+	doors := []Door{}
+	for _, p := range pts {
+		doors = append(doors, new_door(p))
+	}
+	return doors
+}
+func (l *Level) generate_doors() {
+	wall_pts := l.get_all_wall_points()
+	corr_pts := l.get_all_corridor_points()
+	door_pts := l.find_point_set_intersections(wall_pts, corr_pts)
+	l.doors = l.generate_doors_at(door_pts)
+}
 func (l *Level) get_tile(p Point) tiletype {
 	if l.pc.pos.x == p.x && l.pc.pos.y == p.y {
-		return Player
+		return PlayerTile
+	}
+	// TODO use a map to manage points / tiles
+	for _, d := range l.doors {
+		if d.exists_at(p) {
+			return d.get_tile(p)
+		}
 	}
 	for _, c := range l.corridors {
 		if c.exists_at(p) {
@@ -150,7 +184,7 @@ func (l *Level) get_tile(p Point) tiletype {
 			return r.get_tile(p)
 		}
 	}
-	return Void
+	return VoidTile
 }
 func (l *Level) get_tiles() []tiletype {
 	tiles := []tiletype{}
@@ -183,6 +217,17 @@ type Room struct {
 	inner_points []Point
 }
 
+func new_room(a, b Point) Room {
+	dx := b.x - a.x
+	dy := b.y - a.y
+	w := get_rand_range(3, dx-1)
+	h := get_rand_range(3, dy-1)
+	x := a.x + get_rand(dx-w)
+	y := a.y + get_rand(dy-h)
+	r := Room{x, y, w, h, nil, nil}
+	r.init()
+	return r
+}
 func (r *Room) init() {
 	r.points = r.get_points()
 	r.inner_points = r.get_inner_points()
@@ -205,6 +250,15 @@ func (r *Room) get_points() []Point {
 	b := Point{r.x + r.w, r.y + r.h}
 	return get_rect_points(a, b)
 }
+func (r *Room) get_wall_points() []Point {
+	pts := []Point{}
+	for _, p := range r.points {
+		if r.is_wall(p) {
+			pts = append(pts, p)
+		}
+	}
+	return pts
+}
 func (r *Room) is_my_point(p Point) bool {
 	return p.is_in_slice(r.points)
 }
@@ -219,9 +273,9 @@ func (r *Room) is_wall(p Point) bool {
 }
 func (r *Room) get_tile(p Point) tiletype {
 	if r.is_wall(p) {
-		return Wall
+		return WallTile
 	}
-	return Floor
+	return FloorTile
 }
 
 /**
@@ -239,11 +293,10 @@ func new_corridor(l *Level, i int, j int) Corridor {
 	return c
 }
 func (c *Corridor) init() {
-	fmt.Println("init")
 	c.points = c.get_points()
 }
 func (c *Corridor) get_tile(p Point) tiletype {
-	return Floor
+	return FloorTile
 }
 func (c *Corridor) exists_at(p Point) bool {
 	return p.is_in_slice(c.points)
@@ -262,6 +315,27 @@ func (c *Corridor) get_points() []Point {
 		pts = append(pts, l.get_points()...)
 	}
 	return pts
+}
+
+/**
+ * Door
+ */
+
+type Door struct {
+	pos    Point
+	locked bool
+	hidden bool
+}
+
+func new_door(pos Point) Door {
+	d := Door{pos, false, false}
+	return d
+}
+func (d *Door) exists_at(p Point) bool {
+	return d.pos.equals(p)
+}
+func (d *Door) get_tile(p Point) tiletype {
+	return DoorTile
 }
 
 /**
@@ -333,24 +407,28 @@ type PlayerCharacter struct {
  * renderer
  */
 
-type Renderer struct{}
+type Renderer struct {
+	tiles map[tiletype]string
+}
 
 func new_renderer() *Renderer {
-	return &Renderer{}
+	tiles := map[tiletype]string{
+		VoidTile:   " ",
+		FloorTile:  ".",
+		WallTile:   "#",
+		DoorTile:   "█",
+		PlayerTile: "@"}
+	return &Renderer{tiles}
 }
 func (r *Renderer) clear() {
 	fmt.Println("\033[H\033[2J")
 }
 func (r *Renderer) get_texture(tt tiletype) string {
-	switch tt {
-	case Floor:
-		return "."
-	case Wall:
-		return "#"
-	case Player:
-		return "@"
+	tile_char, exists := r.tiles[tt]
+	if exists {
+		return tile_char
 	}
-	return " "
+	return r.tiles[VoidTile]
 }
 func (r *Renderer) render(g *Game) {
 	w := g.level.width
@@ -364,6 +442,7 @@ func (r *Renderer) render(g *Game) {
 		}
 		fmt.Println()
 	}
+	fmt.Println()
 	fmt.Println(g.status())
 }
 
