@@ -112,11 +112,11 @@ func new_game() Game {
 
 type Level struct {
 	width, height int
+	elements      []LevelElement
 	rooms         []*Room
 	corridors     []*Corridor
 	doors         []*Door
 	staircases    []*Staircase
-	elements      []LevelElement
 	pc            *PlayerCharacter
 }
 
@@ -126,7 +126,6 @@ func (l *Level) init() {
 	l.corridors = l.generate_corridors()
 	l.doors = l.generate_doors()
 	l.staircases = l.generate_staircases()
-	l.reverse_elements()
 }
 func (l *Level) reverse_elements() {
 	reversed := []LevelElement{}
@@ -225,11 +224,7 @@ func (l *Level) find_point_set_intersections(s1 []Point, s2 []Point) []Point {
 	}
 	return pts
 }
-
 func (l *Level) get_tile(p Point) tiletype {
-	if l.pc.pos.equals(p) {
-		return PlayerTile
-	}
 	for _, e := range l.elements {
 		if e.exists_at(p) {
 			return e.get_tile(p)
@@ -255,6 +250,8 @@ func (l *Level) put_player(pc *PlayerCharacter) {
 	p := l.get_random_room().get_random_inner_point()
 	pc.pos = p
 	l.pc = pc
+	l.elements = append(l.elements, pc)
+	l.reverse_elements()
 }
 
 /**
@@ -475,6 +472,13 @@ func (p *Point) is_in_slice(s []Point) bool {
 
 type PlayerCharacter struct {
 	pos Point
+}
+
+func (pc *PlayerCharacter) exists_at(p Point) bool {
+	return pc.pos.equals(p)
+}
+func (pc *PlayerCharacter) get_tile(p Point) tiletype {
+	return PlayerTile
 }
 
 /**
