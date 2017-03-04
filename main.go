@@ -51,9 +51,14 @@ func (g *Game) handle_io() bool {
 	}
 	return false
 }
+func (g *Game) clear_level() {
+	g.level = nil
+}
 func (g *Game) generate_level() {
 	g.level = &Level{60, 32, nil, nil, nil, nil, nil}
 	g.level.init()
+}
+func (g *Game) init_player() {
 	g.pc = &PlayerCharacter{Point{0, 0}}
 	g.level.put_player(g.pc)
 }
@@ -72,7 +77,8 @@ func (g *Game) handle_user_input(c string) {
 	case "d":
 		// TODO implement transition to next level
 		if g.level.is_staircase(g.pc.pos) {
-			down = true
+			g.clear_level()
+			g.next_level()
 		}
 	}
 
@@ -82,10 +88,16 @@ func (g *Game) handle_user_input(c string) {
 		g.pc.pos = new_pc_pos
 	}
 }
+func (g *Game) next_level() {
+	g.clear_level()
+	g.generate_level()
+	g.level.put_player(g.pc)
+}
 
 func new_game() Game {
 	g := Game{nil, nil}
 	g.generate_level()
+	g.init_player()
 	return g
 }
 
@@ -193,6 +205,7 @@ func (l *Level) get_tile(p Point) tiletype {
 		return PlayerTile
 	}
 	// TODO use a map to manage points / tiles
+	// using types / interfaces might be useful
 	for _, d := range l.doors {
 		if d.exists_at(p) {
 			return d.get_tile(p)
