@@ -25,6 +25,8 @@ const (
 	StaircaseUpTile   = iota
 )
 
+var down = false
+
 /**
  * Game
  */
@@ -67,6 +69,11 @@ func (g *Game) handle_user_input(c string) {
 		x += 1
 	case "k":
 		y -= 1
+	case "d":
+		// TODO implement transition to next level
+		if g.level.is_staircase(g.pc.pos) {
+			down = true
+		}
 	}
 
 	new_pc_pos := Point{x, y}
@@ -146,9 +153,16 @@ func (l *Level) generate_doors_at(pts []Point) []Door {
 	return doors
 }
 func (l *Level) generate_staircases() {
-	// TODO implement
 	s := new_staircase(l.get_random_room().get_random_inner_point())
 	l.staircases = []Staircase{s}
+}
+func (l *Level) is_staircase(p Point) bool {
+	for _, s := range l.staircases {
+		if s.pos.equals(p) {
+			return true
+		}
+	}
+	return false
 }
 func (l *Level) get_all_wall_points() []Point {
 	pts := []Point{}
@@ -484,6 +498,10 @@ func (r *Renderer) render(g *Game) {
 	}
 	fmt.Println()
 	fmt.Println(g.status())
+	// TODO remove, implement level transition
+	if down {
+		fmt.Println("down")
+	}
 }
 
 /**
