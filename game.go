@@ -290,7 +290,7 @@ func (r *Room) get_wall_points() []Point {
 	}
 	return pts
 }
-func (r *Room) get_wall_point(side int) Point {
+func (r *Room) get_central_wall_point(side int) Point {
 	wall := r.get_wall_points()
 	m := r.get_central_point()
 	switch side {
@@ -370,8 +370,8 @@ func (c *Corridor) get_points() []Point {
 	return c.get_points_from_lines(lines)
 }
 func (c *Corridor) get_defining_points(ws_a int, ws_b int, vertical bool) (Point, Point, Point, Point, Point) {
-	start := c.room_a.get_wall_point(ws_a)
-	end := c.room_b.get_wall_point(ws_b)
+	start := c.room_a.get_central_wall_point(ws_a)
+	end := c.room_b.get_central_wall_point(ws_b)
 	middle := start.get_point_between(end)
 	if vertical {
 		return start, Point{start.x, middle.y}, middle, Point{end.x, middle.y}, end
