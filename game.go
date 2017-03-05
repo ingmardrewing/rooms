@@ -344,18 +344,13 @@ func (r *Room) get_tile(p Point) tiletype {
  * Corridor
  */
 type Corridor struct {
-	room_a       *Room
-	room_b       *Room
-	wall_a       int
-	wall_b       int
-	wall_point_a Point
-	wall_point_b Point
-	vertical     bool
-	points       []Point
+	room_a *Room
+	room_b *Room
+	points []Point
 }
 
 func new_corridor(l *Level, i int, j int) *Corridor {
-	c := Corridor{l.rooms[i], l.rooms[j], Top, Bottom, Point{0, 0}, Point{0, 0}, false, nil}
+	c := Corridor{l.rooms[i], l.rooms[j], nil}
 	c.init()
 	return &c
 }
@@ -378,11 +373,10 @@ func (c *Corridor) get_defining_points(ws_a int, ws_b int, vertical bool) (Point
 	start := c.room_a.get_wall_point(ws_a)
 	end := c.room_b.get_wall_point(ws_b)
 	middle := start.get_point_between(end)
-	corner_1, corner_2 := Point{middle.x, start.y}, Point{middle.x, end.y}
 	if vertical {
-		corner_1, corner_2 = Point{start.x, middle.y}, Point{end.x, middle.y}
+		return start, Point{start.x, middle.y}, middle, Point{end.x, middle.y}, end
 	}
-	return start, corner_1, middle, corner_2, end
+	return start, Point{middle.x, start.y}, middle, Point{middle.x, end.y}, end
 }
 func (c *Corridor) get_points_from_lines(lines []Line) []Point {
 	pts := []Point{}
