@@ -360,7 +360,6 @@ func new_corridor(l *Level, i int, j int) *Corridor {
 	return &c
 }
 func (c *Corridor) init() {
-	c.find_wall_points()
 	c.points = c.get_points()
 }
 func (c *Corridor) get_tile(p Point) tiletype {
@@ -369,56 +368,49 @@ func (c *Corridor) get_tile(p Point) tiletype {
 func (c *Corridor) exists_at(p Point) bool {
 	return p.is_in_slice(c.points)
 }
-func (c *Corridor) find_wall_points() {
-	a := c.room_a.get_central_point()
-	b := c.room_b.get_central_point()
-	dx := float64(b.x - a.x)
-	dy := float64(b.y - a.y)
-	if math.Abs(dx) > math.Abs(dy) {
-		if dx < 0 {
-			c.wall_a = Left
-			c.wall_b = Right
-		} else {
-			c.wall_a = Right
-			c.wall_b = Left
-		}
-	} else {
-		c.vertical = true
-		if dy < 0 {
-			c.wall_a = Top
-			c.wall_b = Bottom
-		} else {
-			c.wall_a = Bottom
-			c.wall_b = Top
-		}
-	}
-}
-func (c *Corridor) get_lines(m Point) []Line {
-	if c.vertical {
-		return []Line{
-			Line{c.wall_point_a, Point{c.wall_point_a.x, m.y}},
-			Line{Point{c.wall_point_a.x, m.y}, m},
-			Line{m, Point{c.wall_point_b.x, m.y}},
-			Line{Point{c.wall_point_b.x, m.y}, c.wall_point_b}}
-
-	}
-	return []Line{
-		Line{c.wall_point_a, Point{m.x, c.wall_point_a.y}},
-		Line{Point{m.x, c.wall_point_a.y}, m},
-		Line{m, Point{m.x, c.wall_point_b.y}},
-		Line{Point{m.x, c.wall_point_b.y}, c.wall_point_b}}
-}
 func (c *Corridor) get_points() []Point {
-	c.wall_point_a = c.room_a.get_wall_point(c.wall_a)
-	c.wall_point_b = c.room_b.get_wall_point(c.wall_b)
-
-	m := c.wall_point_a.get_point_between(c.wall_point_b)
-	lines := c.get_lines(m)
+	ws_a, ws_b := c.get_wall_sides()
+	start, corner_1, middle, corner_2, end := c.get_defining_points(ws_a, ws_b, ws_a == Top || ws_a == Bottom)
+	lines := c.get_lines(start, corner_1, middle, corner_2, end)
+	return c.get_points_from_lines(lines)
+}
+func (c *Corridor) get_defining_points(ws_a int, ws_b int, vertical bool) (Point, Point, Point, Point, Point) {
+	start := c.room_a.get_wall_point(ws_a)
+	end := c.room_b.get_wall_point(ws_b)
+	middle := start.get_point_between(end)
+	corner_1, corner_2 := Point{middle.x, start.y}, Point{middle.x, end.y}
+	if vertical {
+		corner_1, corner_2 = Point{start.x, middle.y}, Point{end.x, middle.y}
+	}
+	return start, corner_1, middle, corner_2, end
+}
+func (c *Corridor) get_points_from_lines(lines []Line) []Point {
 	pts := []Point{}
 	for _, l := range lines {
 		pts = append(pts, l.get_points()...)
 	}
 	return pts
+}
+func (c *Corridor) get_lines(wp_a Point, corner_1 Point, m Point, corner_2 Point, wp_b Point) []Line {
+	return []Line{
+		Line{wp_a, corner_1},
+		Line{corner_1, m},
+		Line{m, corner_2},
+		Line{corner_2, wp_b}}
+}
+func (c *Corridor) get_wall_sides() (int, int) {
+	a := c.room_a.get_central_point()
+	b := c.room_b.get_central_point()
+	dx := float64(b.x - a.x)
+	dy := float64(b.y - a.y)
+	if math.Abs(dx) > math.Abs(dy) && dx < 0 {
+		return Left, Right
+	} else if math.Abs(dx) > math.Abs(dy) {
+		return Right, Left
+	} else if dy < 0 {
+		return Top, Bottom
+	}
+	return Bottom, Top
 }
 
 /**
