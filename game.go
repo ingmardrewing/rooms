@@ -1,5 +1,14 @@
 package main
 
+import "math"
+
+const (
+	Top    = iota
+	Left   = iota
+	Bottom = iota
+	Right  = iota
+)
+
 type LevelElement interface {
 	exists_at(p Point) bool
 	get_tile(p Point) tiletype
@@ -234,7 +243,7 @@ func (l *Level) put_player(pc *PlayerCharacter) {
  */
 
 type Room struct {
-	x, y         int
+	pos          Point
 	w, h         int
 	points       []Point
 	inner_points []Point
@@ -247,7 +256,7 @@ func new_room(a, b Point) Room {
 	h := get_rand_range(3, dy-1)
 	x := a.x + get_rand(dx-w)
 	y := a.y + get_rand(dy-h)
-	r := Room{x, y, w, h, nil, nil}
+	r := Room{Point{x, y}, w, h, nil, nil}
 	r.init()
 	return r
 }
@@ -261,17 +270,16 @@ func (r *Room) get_random_inner_point() Point {
 	return pts[i]
 }
 func (r *Room) get_central_point() Point {
-	return Point{r.x + r.w/2, r.y + r.h/2}
+	return Point{r.pos.x + r.w/2, r.pos.y + r.h/2}
 }
 func (r *Room) get_inner_points() []Point {
-	a := Point{r.x + 1, r.y + 1}
-	b := Point{r.x + r.w - 1, r.y + r.h - 1}
+	a := Point{r.pos.x + 1, r.pos.y + 1}
+	b := Point{r.pos.x + r.w - 1, r.pos.y + r.h - 1}
 	return get_rect_points(a, b)
 }
 func (r *Room) get_points() []Point {
-	a := Point{r.x, r.y}
-	b := Point{r.x + r.w, r.y + r.h}
-	return get_rect_points(a, b)
+	b := Point{r.pos.x + r.w, r.pos.y + r.h}
+	return get_rect_points(r.pos, b)
 }
 func (r *Room) get_wall_points() []Point {
 	pts := []Point{}
@@ -281,6 +289,37 @@ func (r *Room) get_wall_points() []Point {
 		}
 	}
 	return pts
+}
+func (r *Room) get_wall_point(side int) Point {
+	wall := r.get_wall_points()
+	m := r.get_central_point()
+	switch side {
+	case Top:
+		for _, wp := range wall {
+			if wp.y == r.pos.y && wp.x == m.x {
+				return wp
+			}
+		}
+	case Bottom:
+		for _, wp := range wall {
+			if wp.y == r.pos.y+r.h && wp.x == m.x {
+				return wp
+			}
+		}
+	case Left:
+		for _, wp := range wall {
+			if wp.x == r.pos.x && wp.y == m.y {
+				return wp
+			}
+		}
+	case Right:
+		for _, wp := range wall {
+			if wp.x == r.pos.x+r.w && wp.y == m.y {
+				return wp
+			}
+		}
+	}
+	return Point{0, 0}
 }
 func (r *Room) is_my_point(p Point) bool {
 	return p.is_in_slice(r.points)
@@ -305,17 +344,23 @@ func (r *Room) get_tile(p Point) tiletype {
  * Corridor
  */
 type Corridor struct {
-	room_a *Room
-	room_b *Room
-	points []Point
+	room_a       *Room
+	room_b       *Room
+	wall_a       int
+	wall_b       int
+	wall_point_a Point
+	wall_point_b Point
+	vertical     bool
+	points       []Point
 }
 
 func new_corridor(l *Level, i int, j int) *Corridor {
-	c := Corridor{l.rooms[i], l.rooms[j], nil}
+	c := Corridor{l.rooms[i], l.rooms[j], Top, Bottom, Point{0, 0}, Point{0, 0}, false, nil}
 	c.init()
 	return &c
 }
 func (c *Corridor) init() {
+	c.find_wall_points()
 	c.points = c.get_points()
 }
 func (c *Corridor) get_tile(p Point) tiletype {
@@ -324,15 +369,51 @@ func (c *Corridor) get_tile(p Point) tiletype {
 func (c *Corridor) exists_at(p Point) bool {
 	return p.is_in_slice(c.points)
 }
-func (c *Corridor) get_points() []Point {
+func (c *Corridor) find_wall_points() {
 	a := c.room_a.get_central_point()
 	b := c.room_b.get_central_point()
-	m := a.get_point_between(b)
-	lines := []Line{
-		Line{a, Point{m.x, a.y}},
-		Line{Point{m.x, a.y}, m},
-		Line{m, Point{b.x, m.y}},
-		Line{Point{b.x, m.y}, b}}
+	dx := float64(b.x - a.x)
+	dy := float64(b.y - a.y)
+	if math.Abs(dx) > math.Abs(dy) {
+		if dx < 0 {
+			c.wall_a = Left
+			c.wall_b = Right
+		} else {
+			c.wall_a = Right
+			c.wall_b = Left
+		}
+	} else {
+		c.vertical = true
+		if dy < 0 {
+			c.wall_a = Top
+			c.wall_b = Bottom
+		} else {
+			c.wall_a = Bottom
+			c.wall_b = Top
+		}
+	}
+}
+func (c *Corridor) get_lines(m Point) []Line {
+	if c.vertical {
+		return []Line{
+			Line{c.wall_point_a, Point{c.wall_point_a.x, m.y}},
+			Line{Point{c.wall_point_a.x, m.y}, m},
+			Line{m, Point{c.wall_point_b.x, m.y}},
+			Line{Point{c.wall_point_b.x, m.y}, c.wall_point_b}}
+
+	}
+	return []Line{
+		Line{c.wall_point_a, Point{m.x, c.wall_point_a.y}},
+		Line{Point{m.x, c.wall_point_a.y}, m},
+		Line{m, Point{m.x, c.wall_point_b.y}},
+		Line{Point{m.x, c.wall_point_b.y}, c.wall_point_b}}
+}
+func (c *Corridor) get_points() []Point {
+	c.wall_point_a = c.room_a.get_wall_point(c.wall_a)
+	c.wall_point_b = c.room_b.get_wall_point(c.wall_b)
+
+	m := c.wall_point_a.get_point_between(c.wall_point_b)
+	lines := c.get_lines(m)
 	pts := []Point{}
 	for _, l := range lines {
 		pts = append(pts, l.get_points()...)
