@@ -293,30 +293,18 @@ func (r *Room) get_wall_points() []Point {
 func (r *Room) get_central_wall_point(side int) Point {
 	wall := r.get_wall_points()
 	m := r.get_central_point()
-	switch side {
-	case Top:
-		for _, wp := range wall {
-			if wp.y == r.pos.y && wp.x == m.x {
-				return wp
-			}
+	for _, wp := range wall {
+		if side == Top && wp.y == r.pos.y && wp.x == m.x {
+			return wp
 		}
-	case Bottom:
-		for _, wp := range wall {
-			if wp.y == r.pos.y+r.h && wp.x == m.x {
-				return wp
-			}
+		if side == Bottom && wp.y == r.pos.y+r.h && wp.x == m.x {
+			return wp
 		}
-	case Left:
-		for _, wp := range wall {
-			if wp.x == r.pos.x && wp.y == m.y {
-				return wp
-			}
+		if side == Left && wp.x == r.pos.x && wp.y == m.y {
+			return wp
 		}
-	case Right:
-		for _, wp := range wall {
-			if wp.x == r.pos.x+r.w && wp.y == m.y {
-				return wp
-			}
+		if side == Right && wp.x == r.pos.x+r.w && wp.y == m.y {
+			return wp
 		}
 	}
 	return Point{0, 0}
