@@ -64,7 +64,6 @@ func (g *Game) handle_user_input(c string) {
 	case "k":
 		y -= 1
 	case "d":
-		// TODO implement transition to next level
 		if g.level.is_staircase(g.pc.pos) {
 			g.clear_level()
 			g.next_level()
