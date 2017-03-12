@@ -12,6 +12,7 @@ const (
 type LevelElement interface {
 	exists_at(p Point) bool
 	get_tile(p Point) tiletype
+	get_gamepoint(p Point) *GamePoint
 }
 
 var down = false
@@ -44,7 +45,7 @@ func (g *Game) clear_level() {
 	g.level = nil
 }
 func (g *Game) generate_level() {
-	g.level = &Level{60, 32, nil, nil, nil, nil, nil, nil}
+	g.level = &Level{60, 32, nil, nil, nil, nil, nil, nil, nil}
 	g.level.init()
 }
 func (g *Game) init_player() {
@@ -100,6 +101,7 @@ type Level struct {
 	corridors     []*Corridor
 	doors         []*Door
 	staircases    []*Staircase
+	gamepoints    []*GamePoint
 	pc            *PlayerCharacter
 }
 
@@ -109,7 +111,9 @@ func (l *Level) init() {
 	l.corridors = l.generate_corridors()
 	l.doors = l.generate_doors()
 	l.staircases = l.generate_staircases()
+	l.gamepoints = l.get_gamepoints()
 }
+
 func (l *Level) reverse_elements() {
 	reversed := []LevelElement{}
 	for i := len(l.elements) - 1; i >= 0; i-- {
@@ -117,9 +121,11 @@ func (l *Level) reverse_elements() {
 	}
 	l.elements = reversed
 }
+
 func (l *Level) add_element(e LevelElement) {
 	l.elements = append(l.elements, e)
 }
+
 func (l *Level) get_walkable_points() []Point {
 	pts := []Point{}
 	for _, r := range l.rooms {
@@ -130,6 +136,7 @@ func (l *Level) get_walkable_points() []Point {
 	}
 	return pts
 }
+
 func (l *Level) generate_rooms() []*Room {
 	rooms := []*Room{}
 	row_height := l.height / 2
@@ -145,6 +152,7 @@ func (l *Level) generate_rooms() []*Room {
 	}
 	return rooms
 }
+
 func (l *Level) generate_corridors() []*Corridor {
 	from := []int{0, 1, 3, 4, 0, 1, 2}
 	to := []int{1, 2, 4, 5, 3, 4, 5}
@@ -156,12 +164,14 @@ func (l *Level) generate_corridors() []*Corridor {
 	}
 	return crs
 }
+
 func (l *Level) generate_doors() []*Door {
 	wall_pts := l.get_all_wall_points()
 	corr_pts := l.get_all_corridor_points()
 	door_pts := l.find_point_set_intersections(wall_pts, corr_pts)
 	return l.generate_doors_at(door_pts)
 }
+
 func (l *Level) generate_doors_at(pts []Point) []*Door {
 	doors := []*Door{}
 	for _, p := range pts {
@@ -171,11 +181,13 @@ func (l *Level) generate_doors_at(pts []Point) []*Door {
 	}
 	return doors
 }
+
 func (l *Level) generate_staircases() []*Staircase {
 	s := new_staircase(l.get_random_room().get_random_inner_point())
 	l.add_element(&s)
 	return []*Staircase{&s}
 }
+
 func (l *Level) is_staircase(p Point) bool {
 	for _, s := range l.staircases {
 		if s.pos.equals(p) {
@@ -184,6 +196,7 @@ func (l *Level) is_staircase(p Point) bool {
 	}
 	return false
 }
+
 func (l *Level) get_all_wall_points() []Point {
 	pts := []Point{}
 	for _, r := range l.rooms {
@@ -191,6 +204,7 @@ func (l *Level) get_all_wall_points() []Point {
 	}
 	return pts
 }
+
 func (l *Level) get_all_corridor_points() []Point {
 	pts := []Point{}
 	for _, c := range l.corridors {
@@ -198,6 +212,7 @@ func (l *Level) get_all_corridor_points() []Point {
 	}
 	return pts
 }
+
 func (l *Level) find_point_set_intersections(s1 []Point, s2 []Point) []Point {
 	pts := []Point{}
 	for _, p1 := range s1 {
@@ -207,6 +222,7 @@ func (l *Level) find_point_set_intersections(s1 []Point, s2 []Point) []Point {
 	}
 	return pts
 }
+
 func (l *Level) get_tile(p Point) tiletype {
 	for _, e := range l.elements {
 		if e.exists_at(p) {
@@ -215,6 +231,17 @@ func (l *Level) get_tile(p Point) tiletype {
 	}
 	return VoidTile
 }
+
+func (l *Level) get_gamepoint(p Point) *GamePoint {
+	for _, e := range l.elements {
+		if e.exists_at(p) {
+			gp := e.get_gamepoint(p)
+			return gp
+		}
+	}
+	return nil
+}
+
 func (l *Level) get_tiles() []tiletype {
 	tiles := []tiletype{}
 	for y := 0; y < l.height; y++ {
@@ -224,11 +251,24 @@ func (l *Level) get_tiles() []tiletype {
 	}
 	return tiles
 }
+
+func (l *Level) get_gamepoints() []*GamePoint {
+	gps := []*GamePoint{}
+	for y := 0; y < l.height; y++ {
+		for x := 0; x < l.width; x++ {
+			gp := l.get_gamepoint(Point{x, y})
+			gps = append(gps, gp)
+		}
+	}
+	return gps
+}
+
 func (l *Level) get_random_room() *Room {
 	i := get_rand(len(l.rooms))
 	r := l.rooms[i]
 	return r
 }
+
 func (l *Level) put_player(pc *PlayerCharacter) {
 	p := l.get_random_room().get_random_inner_point()
 	pc.pos = p
@@ -259,27 +299,33 @@ func new_room(a, b Point) Room {
 	r.init()
 	return r
 }
+
 func (r *Room) init() {
 	r.points = r.get_points()
 	r.inner_points = r.get_inner_points()
 }
+
 func (r *Room) get_random_inner_point() Point {
 	pts := r.get_inner_points()
 	i := get_rand(len(pts))
 	return pts[i]
 }
+
 func (r *Room) get_central_point() Point {
 	return Point{r.pos.x + r.w/2, r.pos.y + r.h/2}
 }
+
 func (r *Room) get_inner_points() []Point {
 	a := Point{r.pos.x + 1, r.pos.y + 1}
 	b := Point{r.pos.x + r.w - 1, r.pos.y + r.h - 1}
 	return get_rect_points(a, b)
 }
+
 func (r *Room) get_points() []Point {
 	b := Point{r.pos.x + r.w, r.pos.y + r.h}
 	return get_rect_points(r.pos, b)
 }
+
 func (r *Room) get_wall_points() []Point {
 	pts := []Point{}
 	for _, p := range r.points {
@@ -289,6 +335,7 @@ func (r *Room) get_wall_points() []Point {
 	}
 	return pts
 }
+
 func (r *Room) get_central_wall_point(side int) Point {
 	wall := r.get_wall_points()
 	m := r.get_central_point()
@@ -308,18 +355,32 @@ func (r *Room) get_central_wall_point(side int) Point {
 	}
 	return Point{0, 0}
 }
+
 func (r *Room) is_my_point(p Point) bool {
 	return p.is_in_slice(r.points)
 }
+
 func (r *Room) is_my_inner_point(p Point) bool {
 	return p.is_in_slice(r.inner_points)
 }
+
 func (r *Room) exists_at(p Point) bool {
 	return r.is_my_point(p)
 }
+
 func (r *Room) is_wall(p Point) bool {
 	return r.is_my_point(p) && !r.is_my_inner_point(p)
 }
+
+func (r *Room) get_gamepoint(p Point) *GamePoint {
+	gp := new_gamepoint(
+		p,
+		r.get_tile(p),
+		true,
+		false)
+	return &gp
+}
+
 func (r *Room) get_tile(p Point) tiletype {
 	if r.is_wall(p) {
 		return WallTile
@@ -341,21 +402,35 @@ func new_corridor(l *Level, i int, j int) *Corridor {
 	c.init()
 	return &c
 }
+
 func (c *Corridor) init() {
 	c.points = c.get_points()
 }
+
 func (c *Corridor) get_tile(p Point) tiletype {
 	return FloorTile
 }
+
+func (c *Corridor) get_gamepoint(p Point) *GamePoint {
+	gp := new_gamepoint(
+		p,
+		FloorTile,
+		true,
+		false)
+	return &gp
+}
+
 func (c *Corridor) exists_at(p Point) bool {
 	return p.is_in_slice(c.points)
 }
+
 func (c *Corridor) get_points() []Point {
 	ws_a, ws_b := c.get_wall_sides()
 	start, corner_1, middle, corner_2, end := c.get_defining_points(ws_a, ws_b, ws_a == Top || ws_a == Bottom)
 	lines := c.get_lines(start, corner_1, middle, corner_2, end)
 	return c.get_points_from_lines(lines)
 }
+
 func (c *Corridor) get_defining_points(ws_a int, ws_b int, vertical bool) (Point, Point, Point, Point, Point) {
 	start := c.room_a.get_central_wall_point(ws_a)
 	end := c.room_b.get_central_wall_point(ws_b)
@@ -365,6 +440,7 @@ func (c *Corridor) get_defining_points(ws_a int, ws_b int, vertical bool) (Point
 	}
 	return start, Point{middle.x, start.y}, middle, Point{middle.x, end.y}, end
 }
+
 func (c *Corridor) get_points_from_lines(lines []Line) []Point {
 	pts := []Point{}
 	for _, l := range lines {
@@ -372,6 +448,7 @@ func (c *Corridor) get_points_from_lines(lines []Line) []Point {
 	}
 	return pts
 }
+
 func (c *Corridor) get_lines(wp_a Point, corner_1 Point, m Point, corner_2 Point, wp_b Point) []Line {
 	return []Line{
 		Line{wp_a, corner_1},
@@ -379,6 +456,7 @@ func (c *Corridor) get_lines(wp_a Point, corner_1 Point, m Point, corner_2 Point
 		Line{m, corner_2},
 		Line{corner_2, wp_b}}
 }
+
 func (c *Corridor) get_wall_sides() (int, int) {
 	a := c.room_a.get_central_point()
 	b := c.room_b.get_central_point()
@@ -408,11 +486,22 @@ func new_door(pos Point) *Door {
 	d := Door{pos, false, false}
 	return &d
 }
+
 func (d *Door) exists_at(p Point) bool {
 	return d.pos.equals(p)
 }
+
 func (d *Door) get_tile(p Point) tiletype {
 	return DoorTile
+}
+
+func (d *Door) get_gamepoint(p Point) *GamePoint {
+	gp := new_gamepoint(
+		p,
+		DoorTile,
+		true,
+		false)
+	return &gp
 }
 
 /**
@@ -428,14 +517,25 @@ func new_staircase(pos Point) Staircase {
 	s := Staircase{pos, false}
 	return s
 }
+
 func (s *Staircase) exists_at(p Point) bool {
 	return s.pos.equals(p)
 }
+
 func (s *Staircase) get_tile(p Point) tiletype {
 	if s.up {
 		return StaircaseUpTile
 	}
 	return StaircaseDownTile
+}
+
+func (s *Staircase) get_gamepoint(p Point) *GamePoint {
+	gp := new_gamepoint(
+		p,
+		s.get_tile(p),
+		true,
+		false)
+	return &gp
 }
 
 /**
@@ -449,6 +549,32 @@ type PlayerCharacter struct {
 func (pc *PlayerCharacter) exists_at(p Point) bool {
 	return pc.pos.equals(p)
 }
+
 func (pc *PlayerCharacter) get_tile(p Point) tiletype {
 	return PlayerTile
+}
+
+func (pc *PlayerCharacter) get_gamepoint(p Point) *GamePoint {
+	gp := new_gamepoint(
+		p,
+		PlayerTile,
+		true,
+		false)
+	return &gp
+}
+
+/**
+ * GamePoint
+ */
+
+type GamePoint struct {
+	tile       tiletype
+	pos        Point
+	seen       bool
+	persistent bool
+	moving     bool
+}
+
+func new_gamepoint(pos Point, tile tiletype, persistent bool, moving bool) GamePoint {
+	return GamePoint{tile, pos, false, persistent, moving}
 }
