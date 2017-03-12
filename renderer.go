@@ -49,15 +49,29 @@ func (r *Renderer) get_texture(tt tiletype) string {
 func (r *Renderer) render(g *Game) {
 	w := g.level.width
 	h := g.level.height
-	t := g.level.get_tiles()
+	gps := g.level.get_gamepoints()
+
 	for i := 0; i < h; i++ {
 		for j := 0; j < w; j++ {
 			indx := i*w + j
-			texture := r.get_texture(t[indx])
+			gp := gps[indx]
+			texture := r.get_texture(gp.tile)
 			fmt.Print(texture)
 		}
 		fmt.Println()
 	}
+	/*
+
+		for i := 0; i < h; i++ {
+			for j := 0; j < w; j++ {
+				indx := i*w + j
+				texture := r.get_texture(t[indx])
+				fmt.Print(texture)
+			}
+			fmt.Println()
+		}
+	*/
+
 	fmt.Println()
 	fmt.Println(g.status())
 	// TODO remove, implement level transition

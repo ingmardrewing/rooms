@@ -29,6 +29,7 @@ type Game struct {
 func (g *Game) status() string {
 	return "h to go left, j to go down, k to go up, l to go right.\nq to quit"
 }
+
 func (g *Game) handle_io() bool {
 	b := string(getch())
 	if b == "q" {
@@ -41,17 +42,21 @@ func (g *Game) handle_io() bool {
 	}
 	return false
 }
+
 func (g *Game) clear_level() {
 	g.level = nil
 }
+
 func (g *Game) generate_level() {
-	g.level = &Level{60, 32, nil, nil, nil, nil, nil, nil, nil}
+	g.level = &Level{60, 32, nil, nil, nil, nil, nil, nil}
 	g.level.init()
 }
+
 func (g *Game) init_player() {
 	g.pc = &PlayerCharacter{Point{0, 0}}
 	g.level.put_player(g.pc)
 }
+
 func (g *Game) handle_user_input(c string) {
 	x := g.pc.pos.x
 	y := g.pc.pos.y
@@ -77,6 +82,7 @@ func (g *Game) handle_user_input(c string) {
 		g.pc.pos = new_pc_pos
 	}
 }
+
 func (g *Game) next_level() {
 	g.clear_level()
 	g.generate_level()
@@ -101,7 +107,6 @@ type Level struct {
 	corridors     []*Corridor
 	doors         []*Door
 	staircases    []*Staircase
-	gamepoints    []*GamePoint
 	pc            *PlayerCharacter
 }
 
@@ -111,7 +116,14 @@ func (l *Level) init() {
 	l.corridors = l.generate_corridors()
 	l.doors = l.generate_doors()
 	l.staircases = l.generate_staircases()
-	l.gamepoints = l.get_gamepoints()
+}
+
+func (l *Level) put_player(pc *PlayerCharacter) {
+	p := l.get_random_room().get_random_inner_point()
+	pc.pos = p
+	l.pc = pc
+	l.elements = append(l.elements, pc)
+	l.reverse_elements()
 }
 
 func (l *Level) reverse_elements() {
@@ -232,16 +244,6 @@ func (l *Level) get_tile(p Point) tiletype {
 	return VoidTile
 }
 
-func (l *Level) get_gamepoint(p Point) *GamePoint {
-	for _, e := range l.elements {
-		if e.exists_at(p) {
-			gp := e.get_gamepoint(p)
-			return gp
-		}
-	}
-	return nil
-}
-
 func (l *Level) get_tiles() []tiletype {
 	tiles := []tiletype{}
 	for y := 0; y < l.height; y++ {
@@ -263,18 +265,25 @@ func (l *Level) get_gamepoints() []*GamePoint {
 	return gps
 }
 
+func (l *Level) get_gamepoint(p Point) *GamePoint {
+	for _, e := range l.elements {
+		if e.exists_at(p) {
+			gp := e.get_gamepoint(p)
+			return gp
+		}
+	}
+	gp := new_gamepoint(
+		p,
+		VoidTile,
+		true,
+		false)
+	return &gp
+}
+
 func (l *Level) get_random_room() *Room {
 	i := get_rand(len(l.rooms))
 	r := l.rooms[i]
 	return r
-}
-
-func (l *Level) put_player(pc *PlayerCharacter) {
-	p := l.get_random_room().get_random_inner_point()
-	pc.pos = p
-	l.pc = pc
-	l.elements = append(l.elements, pc)
-	l.reverse_elements()
 }
 
 /**
