@@ -55,22 +55,11 @@ func (r *Renderer) render(g *Game) {
 		for j := 0; j < w; j++ {
 			indx := i*w + j
 			gp := gps[indx]
-			texture := r.get_texture(gp.tile)
+			texture := r.get_texture(gp.get_tile())
 			fmt.Print(texture)
 		}
 		fmt.Println()
 	}
-	/*
-
-		for i := 0; i < h; i++ {
-			for j := 0; j < w; j++ {
-				indx := i*w + j
-				texture := r.get_texture(t[indx])
-				fmt.Print(texture)
-			}
-			fmt.Println()
-		}
-	*/
 
 	fmt.Println()
 	fmt.Println(g.status())

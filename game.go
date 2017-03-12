@@ -53,13 +53,13 @@ func (g *Game) generate_level() {
 }
 
 func (g *Game) init_player() {
-	g.pc = &PlayerCharacter{Point{0, 0}}
+	g.pc = new_playercharacter()
 	g.level.put_player(g.pc)
 }
 
 func (g *Game) handle_user_input(c string) {
-	x := g.pc.pos.x
-	y := g.pc.pos.y
+	x := g.pc.gp.pos.x
+	y := g.pc.gp.pos.y
 	switch c {
 	case "j":
 		y += 1
@@ -70,7 +70,7 @@ func (g *Game) handle_user_input(c string) {
 	case "k":
 		y -= 1
 	case "d":
-		if g.level.is_staircase(g.pc.pos) {
+		if g.level.is_staircase(g.pc.gp.pos) {
 			g.clear_level()
 			g.next_level()
 		}
@@ -79,7 +79,7 @@ func (g *Game) handle_user_input(c string) {
 	new_pc_pos := Point{x, y}
 	wkbl := g.level.get_walkable_points()
 	if new_pc_pos.is_in_slice(wkbl) {
-		g.pc.pos = new_pc_pos
+		g.pc.move_to(new_pc_pos)
 	}
 }
 
@@ -119,8 +119,10 @@ func (l *Level) init() {
 }
 
 func (l *Level) put_player(pc *PlayerCharacter) {
-	p := l.get_random_room().get_random_inner_point()
-	pc.pos = p
+	r := l.get_random_room()
+	r.mark_gamepoints_as_seen()
+	p := r.get_random_inner_point()
+	pc.move_to(p)
 	l.pc = pc
 	l.elements = append(l.elements, pc)
 	l.reverse_elements()
@@ -295,6 +297,7 @@ type Room struct {
 	w, h         int
 	points       []Point
 	inner_points []Point
+	gamepoints   []*GamePoint
 }
 
 func new_room(a, b Point) Room {
@@ -304,7 +307,7 @@ func new_room(a, b Point) Room {
 	h := get_rand_range(3, dy-1)
 	x := a.x + get_rand(dx-w)
 	y := a.y + get_rand(dy-h)
-	r := Room{Point{x, y}, w, h, nil, nil}
+	r := Room{Point{x, y}, w, h, nil, nil, nil}
 	r.init()
 	return r
 }
@@ -312,6 +315,7 @@ func new_room(a, b Point) Room {
 func (r *Room) init() {
 	r.points = r.get_points()
 	r.inner_points = r.get_inner_points()
+	r.init_gamepoints()
 }
 
 func (r *Room) get_random_inner_point() Point {
@@ -381,13 +385,34 @@ func (r *Room) is_wall(p Point) bool {
 	return r.is_my_point(p) && !r.is_my_inner_point(p)
 }
 
+func (r *Room) init_gamepoints() {
+	pts := r.get_points()
+	gps := []*GamePoint{}
+	for _, p := range pts {
+		gp := new_gamepoint(
+			p,
+			r.get_tile(p),
+			true,
+			false)
+		gps = append(gps, &gp)
+	}
+	r.gamepoints = gps
+
+}
+
+func (r *Room) mark_gamepoints_as_seen() {
+	for _, gp := range r.gamepoints {
+		gp.seen = true
+	}
+}
+
 func (r *Room) get_gamepoint(p Point) *GamePoint {
-	gp := new_gamepoint(
-		p,
-		r.get_tile(p),
-		true,
-		false)
-	return &gp
+	for _, gp := range r.gamepoints {
+		if gp.pos.equals(p) {
+			return gp
+		}
+	}
+	return nil
 }
 
 func (r *Room) get_tile(p Point) tiletype {
@@ -552,24 +577,38 @@ func (s *Staircase) get_gamepoint(p Point) *GamePoint {
  */
 
 type PlayerCharacter struct {
-	pos Point
+	gp *GamePoint
+}
+
+func new_playercharacter() *PlayerCharacter {
+	gp := new_gamepoint(
+		Point{0, 0},
+		PlayerTile,
+		true,
+		false)
+	gp.seen = true
+	pc := PlayerCharacter{&gp}
+	return &pc
 }
 
 func (pc *PlayerCharacter) exists_at(p Point) bool {
-	return pc.pos.equals(p)
+	return pc.gp.pos.equals(p)
 }
 
 func (pc *PlayerCharacter) get_tile(p Point) tiletype {
 	return PlayerTile
 }
 
+func (pc *PlayerCharacter) set_gamepoint(gp GamePoint) {
+	pc.gp = &gp
+}
+
+func (pc *PlayerCharacter) move_to(p Point) {
+	pc.gp.pos = p
+}
+
 func (pc *PlayerCharacter) get_gamepoint(p Point) *GamePoint {
-	gp := new_gamepoint(
-		p,
-		PlayerTile,
-		true,
-		false)
-	return &gp
+	return pc.gp
 }
 
 /**
@@ -582,6 +621,13 @@ type GamePoint struct {
 	seen       bool
 	persistent bool
 	moving     bool
+}
+
+func (gp *GamePoint) get_tile() tiletype {
+	if gp.seen {
+		return gp.tile
+	}
+	return VoidTile
 }
 
 func new_gamepoint(pos Point, tile tiletype, persistent bool, moving bool) GamePoint {
